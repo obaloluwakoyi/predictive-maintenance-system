@@ -31,7 +31,7 @@ st.subheader("Asset Profile: Offshore Compressor Unit (`COMP_OFFSHORE_01`)")
 CONFIG = {
     "DATA_PATH": "shell_predictive_maintenance_data.csv",
     "TARGET_COL": "fail_warning",
-    "SENSOR_COLS": ["vibration", "temperature", "pressure"],
+    "SENSOR_COLS": ["vibration_mms", "temperature_c", "pressure_psi"],
     "RANDOM_STATE": 42
 }
 
@@ -48,7 +48,7 @@ def load_and_sanitize_data():
 
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df_sorted = df.drop_duplicates(subset=['timestamp']).sort_values('timestamp').reset_index(drop=True)
-    df_sorted = df_sorted.ffill()
+    df_sorted = df_sorted.fillna(method='ffill')
     return df_sorted
 
 def handle_sensor_outliers(df_input, columns):
@@ -79,7 +79,7 @@ def train_production_engine(df_cleaned):
         
     df_features = df_features.dropna().reset_index(drop=True)
     
-    X = df_features.drop(columns=['timestamp', CONFIG["TARGET_COL"]])
+    X = df_features.drop(columns=['timestamp', 'equipment_id', CONFIG["TARGET_COL"]])
     y = df_features[CONFIG["TARGET_COL"]]
     
     # Compensate for extreme 22.6:1 baseline equipment uptime imbalance
@@ -160,18 +160,27 @@ else:
             # Update metric cards
             with metric_row.container():
                 m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Vibration Velocity", f"{latest_reading['vibration']:.2f} mm/s")
-                m2.metric("Core Temperature", f"{latest_reading['temperature']:.1f} °C")
-                m3.metric("System Pressure", f"{latest_reading['pressure']:.1f} PSI")
+                m1.metric("Vibration Velocity", f"{latest_reading['vibration_mms']:.2f} mm/s")
+                m2.metric("Core Temperature", f"{latest_reading['temperature_c']:.1f} °C")
+                m3.metric("System Pressure", f"{latest_reading['pressure_psi']:.1f} PSI")
                 m4.metric("AI Calculated Failure Risk", f"{failure_risk:.2f}%")
             
             # Handle real-time alert states
             if failure_risk < 40:
-                status_banner.markdown(f"<div style='padding:12px; background-color:#d4edda; border-radius:5px; color:#155724; font-weight:bold;'>🟩 SYSTEM STATUS: RUNNING OPTIMAL — Normal Operation Profile ({failure_risk:.1f}% Risk)</div>", unsafe_allowed_html=True)
+                status_banner.markdown(
+                    f"<div style='padding:12px; background-color:#d4edda; border-radius:5px; color:#155724; font-weight:bold;'>🟩 SYSTEM STATUS: RUNNING OPTIMAL — Normal Operation | Risk Level: {failure_risk:.1f}%</div>",
+                    unsafe_allowed_html=True
+                )
             elif 40 <= failure_risk <= 75:
-                status_banner.markdown(f"<div style='padding:12px; background-color:#fff3cd; border-radius:5px; color:#856404; font-weight:bold;'>⚠️ WARNING: MODERATE ANOMALY DETECTED — Schedule Technical Inspection Pipeline ({failure_risk:.1f}% Risk)</div>", unsafe_allowed_html=True)
+                status_banner.markdown(
+                    f"<div style='padding:12px; background-color:#fff3cd; border-radius:5px; color:#856404; font-weight:bold;'>⚠️ WARNING: MODERATE ANOMALY DETECTED — Schedule maintenance inspection | Risk Level: {failure_risk:.1f}%</div>",
+                    unsafe_allowed_html=True
+                )
             else:
-                status_banner.markdown(f"<div style='padding:12px; background-color:#f8d7da; border-radius:5px; color:#721c24; font-weight:bold;'>🚨 CRITICAL ALERT: DEGRADATION SIGNATURE MATCHED — Core Failure Imminent! ({failure_risk:.1f}% Risk)</div>", unsafe_allowed_html=True)
+                status_banner.markdown(
+                    f"<div style='padding:12px; background-color:#f8d7da; border-radius:5px; color:#721c24; font-weight:bold;'>🚨 CRITICAL ALERT: DEGRADATION SIGNATURE MATCHED — Immediate field maintenance required | Risk Level: {failure_risk:.1f}%</div>",
+                    unsafe_allowed_html=True
+                )
             
             # Build rolling status history graphs
             with chart_grid.container():
@@ -212,7 +221,7 @@ else:
         with layout_col2:
             st.markdown("#### System Engineering Architecture Summary")
             st.success("""
-            **1. Inbalance Scaling Enabled** XGBoost configuration utilizes computed class balancing coefficients matching severe real-world data distributions natively.
+            **1. Imbalance Scaling Enabled** XGBoost configuration utilizes computed class balancing coefficients matching severe real-world data distributions natively.
             
             **2. Micro-Vibration Isolation** High-frequency window filters tracking rolling variance isolates structural wear signatures rather than simple absolute bounds.
             
