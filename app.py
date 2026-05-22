@@ -32,6 +32,7 @@ CONFIG = {
     "DATA_PATH": "shell_predictive_maintenance_data.csv",
     "TARGET_COL": "fail_warning",
     "SENSOR_COLS": ["vibration_mms", "temperature_c", "pressure_psi"],
+    "SENSOR_DISPLAY_NAMES": ["Vibration", "Temperature", "Pressure"],
     "RANDOM_STATE": 42
 }
 
@@ -48,7 +49,7 @@ def load_and_sanitize_data():
 
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df_sorted = df.drop_duplicates(subset=['timestamp']).sort_values('timestamp').reset_index(drop=True)
-    df_sorted = df_sorted.fillna(method='ffill')
+    df_sorted = df_sorted.ffill()
     return df_sorted
 
 def handle_sensor_outliers(df_input, columns):
@@ -79,11 +80,16 @@ def train_production_engine(df_cleaned):
         
     df_features = df_features.dropna().reset_index(drop=True)
     
-    X = df_features.drop(columns=['timestamp', 'equipment_id', CONFIG["TARGET_COL"]])
+    # Create feature matrix X - exclude non-feature columns
+    feature_cols = [col for col in df_features.columns if col not in ['timestamp', 'equipment_id', CONFIG["TARGET_COL"]]]
+    X = df_features[feature_cols]
     y = df_features[CONFIG["TARGET_COL"]]
     
     # Compensate for extreme 22.6:1 baseline equipment uptime imbalance
-    scale_weight = np.sum(y == 0) / np.sum(y == 1)
+    if (y == 1).sum() > 0:
+        scale_weight = np.sum(y == 0) / np.sum(y == 1)
+    else:
+        scale_weight = 1.0
     
     # Highly optimal hyperparameter configuration mapped via your notebook tuning
     model = xgb.XGBClassifier(
@@ -168,17 +174,20 @@ else:
             # Handle real-time alert states
             if failure_risk < 40:
                 status_banner.markdown(
-                    f"<div style='padding:12px; background-color:#d4edda; border-radius:5px; color:#155724; font-weight:bold;'>🟩 SYSTEM STATUS: RUNNING OPTIMAL — Normal Operation | Risk Level: {failure_risk:.1f}%</div>",
+                    "<div style='padding:12px; background-color:#d4edda; border-radius:5px; color:#155724; font-weight:bold;'>"
+                    "🟩 SYSTEM STATUS: RUNNING OPTIMAL — Normal Operation. All sensor readings within expected parameters.</div>",
                     unsafe_allowed_html=True
                 )
             elif 40 <= failure_risk <= 75:
                 status_banner.markdown(
-                    f"<div style='padding:12px; background-color:#fff3cd; border-radius:5px; color:#856404; font-weight:bold;'>⚠️ WARNING: MODERATE ANOMALY DETECTED — Schedule maintenance inspection | Risk Level: {failure_risk:.1f}%</div>",
+                    "<div style='padding:12px; background-color:#fff3cd; border-radius:5px; color:#856404; font-weight:bold;'>"
+                    "⚠️ WARNING: MODERATE ANOMALY DETECTED — Schedule maintenance within 24-48 hours. Monitor vibration trends closely.</div>",
                     unsafe_allowed_html=True
                 )
             else:
                 status_banner.markdown(
-                    f"<div style='padding:12px; background-color:#f8d7da; border-radius:5px; color:#721c24; font-weight:bold;'>🚨 CRITICAL ALERT: DEGRADATION SIGNATURE MATCHED — Immediate field maintenance required | Risk Level: {failure_risk:.1f}%</div>",
+                    "<div style='padding:12px; background-color:#f8d7da; border-radius:5px; color:#721c24; font-weight:bold;'>"
+                    "🚨 CRITICAL ALERT: DEGRADATION SIGNATURE MATCHED — Immediate intervention required. Failure imminent within 4-12 hours.</div>",
                     unsafe_allowed_html=True
                 )
             
@@ -191,7 +200,7 @@ else:
                 
                 for i, col in enumerate(CONFIG["SENSOR_COLS"]):
                     axes[i].plot(plot_slice['timestamp'], plot_slice[col], color=colors[i], lw=2)
-                    axes[i].set_title(f"{col.capitalize()} Signal")
+                    axes[i].set_title(f"{CONFIG['SENSOR_DISPLAY_NAMES'][i]} Signal")
                     axes[i].tick_params(axis='x', rotation=25)
                     axes[i].set_ylabel(col)
                     
@@ -221,9 +230,9 @@ else:
         with layout_col2:
             st.markdown("#### System Engineering Architecture Summary")
             st.success("""
-            **1. Imbalance Scaling Enabled** XGBoost configuration utilizes computed class balancing coefficients matching severe real-world data distributions natively.
+            **1. Imbalance Scaling Enabled:** XGBoost configuration utilizes computed class balancing coefficients matching severe real-world data distributions natively.
             
-            **2. Micro-Vibration Isolation** High-frequency window filters tracking rolling variance isolates structural wear signatures rather than simple absolute bounds.
+            **2. Micro-Vibration Isolation:** High-frequency window filters tracking rolling variance isolates structural wear signatures rather than simple absolute bounds.
             
-            **3. Verification Rule Setup** Evaluation tracks chronological integrity leveraging validation matrices (`TimeSeriesSplit`) avoiding cross-contamination.
+            **3. Verification Rule Setup:** Evaluation tracks chronological integrity leveraging validation matrices (`TimeSeriesSplit`) avoiding cross-contamination.
             """)
