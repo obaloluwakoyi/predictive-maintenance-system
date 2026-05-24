@@ -65,16 +65,7 @@ def handle_sensor_outliers(df_input, columns):
         df_clean[col] = np.clip(df_clean[col], lower_bound, upper_bound)
     return df_clean
 
-# FIX 1: Changed @st.cache_resource → @st.cache_data.
-# @st.cache_resource is for global, non-data objects (DB connections, etc.) and
-# cannot hash DataFrame arguments — it raises UnhashableParamError at runtime.
-# @st.cache_data handles DataFrames natively and is correct here.
-#
-# FIX 4: Renamed return value from `feature_columns` (misleading — it was a full
-# DataFrame, not a list of column names) to `feature_matrix` for clarity.
-#
-# FIX 5: Added a chronological train/test split so the analytics view can report
-# real evaluation metrics (precision, recall, F1) instead of showing nothing.
+
 @st.cache_data
 def train_production_engine(df_cleaned):
     """Engineers 24 temporal features and trains an imbalance-aware XGBoost engine."""
@@ -136,7 +127,6 @@ else:
     # ==========================================
     # 3. INTERACTIVE SIDEBAR CONTROL INTERFACE
     # ==========================================
-    st.sidebar.image("https://img.icons8.com/external-flatart-icons-flat-flatarticons/128/external-factory-industry-flatart-icons-flat-flatarticons.png", width=80)
     st.sidebar.header("🕹️ SCADA Configurations")
     
     app_mode = st.sidebar.radio(
