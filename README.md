@@ -2,6 +2,8 @@
 
 An enterprise machine learning pipeline built to monitor continuous telemetry streams from complex heavy machinery and forecast catastrophic failures up to 12 hours before mechanical degradation occurs.
 
+Live demo : https://predictive-maintenance-system-exq3qcmufwaxpddxxmqcgs.streamlit.app/
+
 ## 🚀 Business Impact & Value
 Unplanned asset maintenance costs offshore energy operations massive capital daily. This system serves as an early warning trigger that shifts engineering infrastructure from *reactive firefighting* to *optimized proactive schedules*.
 
